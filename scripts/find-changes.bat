@@ -166,4 +166,6 @@ if !HAS_CLASSES! equ 1 echo - Apex Classes: Found
 if !HAS_TRIGGERS! equ 1 echo - Apex Triggers: Found
 if !HAS_LWC! equ 1 echo - Lightning Web Components: Found
 echo ========================================
-endlocal
+endlocal 
+echo Delta creation completed successfully.
+exit /b 0
