@@ -1,0 +1,95 @@
+<project name="Salesforce CI/CD" default="deploy" basedir=".." xmlns:sf="antlib:com.salesforce">
+    
+    <!-- Load properties from build.properties -->
+    <property file="build/build.properties"/>
+    <property environment="env"/>
+    
+    <!-- Set default values for properties -->
+    <condition property="sf.username" value="">
+        <not><isset property="sf.username"/></not>
+    </condition>
+    <condition property="sf.password" value="">
+        <not><isset property="sf.password"/></not>
+    </condition>
+    <condition property="sf.serverurl" value="">
+        <not><isset property="sf.serverurl"/></not>
+    </condition>
+    
+    <!-- Salesforce Ant task definition -->
+    <taskdef resource="com/salesforce/antlib.xml" uri="antlib:com.salesforce">
+        <classpath>
+            <pathelement location="lib/ant-salesforce.jar"/>
+        </classpath>
+    </taskdef>
+    
+    <!-- Retrieve metadata from Salesforce org -->
+    <target name="retrieve">
+        <echo message="Retrieving metadata from Salesforce..."/>
+        <sf:retrieve username="${sf.username}" 
+                     password="${sf.password}" 
+                     serverurl="${sf.serverurl}" 
+                     retrieveTarget="force-app/main/default" 
+                     unpackaged="src/package.xml"
+                     maxPoll="${sf.maxPoll}"/>
+        <echo message="Retrieve completed successfully!"/>
+    </target>
+    
+    <!-- Validate deployment and deploy (check only) -->
+<target name="validate">
+    <echo message="Validating deployment..."/>
+    <sf:deploy username="${sf.username}" 
+               password="${sf.password}" 
+               serverurl="${sf.serverurl}" 
+               deployRoot="force-app/main/default"
+               checkOnly="true"
+               testLevel="RunSpecifiedTests"
+               rollbackOnError="true"
+               maxPoll="${sf.maxPoll}">
+        <runTest>ContactHandlerTest</runTest>
+    </sf:deploy>
+    <echo message="Validation completed successfully!"/>
+</target>
+
+    <!-- Quick deploy using recent validation ID -->
+    <target name="quickDeploy">
+        <echo message="Executing quick deploy..."/>
+        <sf:deployRecentValidation username="${sf.username}" 
+                                   password="${sf.password}" 
+                                   serverurl="${sf.serverurl}" 
+                                   recentValidationId="${sf.recentValidationId}"
+                                   maxPoll="${sf.maxPoll}"/>
+        <echo message="Quick deploy completed successfully!"/>
+    </target>
+    
+    <!-- Run all tests -->
+    <target name="runTests">
+        <echo message="Running all tests..."/>
+        <sf:deploy username="${sf.username}" 
+                   password="${sf.password}" 
+                   serverurl="${sf.serverurl}" 
+                   deployRoot="force-app/main/default"  
+                   checkOnly="true"
+                   testLevel="RunAllTestsInOrg"
+                   rollbackOnError="true"
+                   maxPoll="${sf.maxPoll}"/>
+        <echo message="Tests completed!"/>
+    </target>
+    
+    <!-- List metadata of a specific type -->
+    <target name="listMetadata">
+        <echo message="Listing metadata of type: ${sf.metadataType}"/>
+        <sf:listMetadata username="${sf.username}" 
+                        password="${sf.password}" 
+                        serverurl="${sf.serverurl}" 
+                        metadataType="${sf.metadataType}"/>
+    </target>
+    
+    <!-- Describe all metadata types -->
+    <target name="describeMetadata">
+        <echo message="Describing all metadata types..."/>
+        <sf:describeMetadata username="${sf.username}" 
+                            password="${sf.password}" 
+                            serverurl="${sf.serverurl}"/>
+    </target>
+    
+</project>
