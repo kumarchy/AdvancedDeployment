@@ -31,15 +31,22 @@ for /f "usebackq delims=" %%f in ("%DELTA_DIR%\changed_files.txt") do (
     ) else (
         if exist "!FILE!" (
             echo Copying !FILE! ...
-            REM Map SFDX structure to metadata format
-            if "!FILE:force-app/main/default/classes=!" neq "!FILE!" (
-                mkdir "%DELTA_DIR%\src\classes"
+        
+        REM --- Apex Classes ---
+        if "!FILE:force-app/main/default/classes=!" neq "!FILE!" (
+                mkdir "%DELTA_DIR%\src\classes" >nul 2>&1
                 copy "!FILE!" "%DELTA_DIR%\src\classes\" >nul
-            ) else if "!FILE:force-app/main/default/triggers=!" neq "!FILE!" (
-                mkdir "%DELTA_DIR%\src\triggers"
+            )
+
+        REM --- Apex Triggers ---
+        if "!FILE:force-app/main/default/triggers=!" neq "!FILE!" (
+                mkdir "%DELTA_DIR%\src\triggers" >nul 2>&1
                 copy "!FILE!" "%DELTA_DIR%\src\triggers\" >nul
-            ) else if "!FILE:force-app/main/default/lwc=!" neq "!FILE!" (
-    for %%a in ("!FILE!") do (
+            )
+        
+        REM --- Lightning Web Components ---
+        if "!FILE:force-app/main/default/lwc=!" neq "!FILE!" (
+        for %%a in ("!FILE!") do (
         set "COMPONENT=%%~dpa"
         set "COMPONENT=!COMPONENT:~0,-1!"
         for %%b in ("!COMPONENT!") do (
