@@ -41,7 +41,7 @@
                password="${sf.password}" 
                serverurl="${sf.serverurl}" 
                deployRoot="force-app/main/default"
-               checkOnly="true"
+               checkOnly="false"
                testLevel="RunSpecifiedTests"
                rollbackOnError="true"
                maxPoll="${sf.maxPoll}">
@@ -49,6 +49,18 @@
     </sf:deploy>
     <echo message="Validation completed successfully!"/>
 </target>
+
+<target name="deltaDeploy">
+    <sf:deploy
+        username="${sf.username}"
+        password="${sf.password}"
+        serverurl="${sf.serverurl}"
+        deployRoot="delta"
+        checkOnly="false"
+        rollbackOnError="true"
+    />
+</target>
+
 
     <!-- Quick deploy using recent validation ID -->
     <target name="quickDeploy">

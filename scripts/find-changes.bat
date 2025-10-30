@@ -1,45 +1,80 @@
 @echo off
+setlocal enabledelayedexpansion
+
 echo ========================================
-echo  🔍 Detecting changed metadata files...
+echo 🔍 Detecting changed metadata files...
 echo ========================================
 
-:: Go to project root
-cd /d "%~dp0.."
+REM Define paths
+set ROOT_DIR=%~dp0..
+set DELTA_DIR=%ROOT_DIR%\delta
+set FORCEAPP_DIR=%ROOT_DIR%\force-app\main\default
 
-:: Delete old delta folder if it exists
-if exist delta (
+REM Cleanup old delta folder
+if exist "%DELTA_DIR%" (
     echo Removing old delta folder...
-    rmdir /s /q delta
+    rmdir /s /q "%DELTA_DIR%"
 )
+mkdir "%DELTA_DIR%\src"
 
-:: Create new delta folder
-mkdir delta
+REM Detect changed files
+cd /d "%ROOT_DIR%"
+git diff --name-only HEAD~1 HEAD > "%DELTA_DIR%\changed_files.txt"
 
-:: Get changed files between last two commits
-git diff --name-only HEAD~1 HEAD > changed_files.txt
-
-echo.
 echo Changed files:
-type changed_files.txt
-echo.
+type "%DELTA_DIR%\changed_files.txt"
 
-:: Copy only changed Salesforce metadata files to delta folder
-for /f "tokens=*" %%A in (changed_files.txt) do (
-    if exist "%%A" (
-        echo Copying %%A ...
-        mkdir "delta\%%~dpA" 2>nul
-        xcopy "%%A" "delta\%%A*" /Y /I >nul
+for /f "usebackq delims=" %%f in ("%DELTA_DIR%\changed_files.txt") do (
+    set FILE=%%f
+    if "!FILE!"=="" (
+        REM skip empty lines
+    ) else (
+        if exist "!FILE!" (
+            echo Copying !FILE! ...
+            REM Map SFDX structure to metadata format
+            if "!FILE:force-app/main/default/classes=!" neq "!FILE!" (
+                mkdir "%DELTA_DIR%\src\classes"
+                copy "!FILE!" "%DELTA_DIR%\src\classes\" >nul
+            ) else if "!FILE:force-app/main/default/triggers=!" neq "!FILE!" (
+                mkdir "%DELTA_DIR%\src\triggers"
+                copy "!FILE!" "%DELTA_DIR%\src\triggers\" >nul
+            ) else if "!FILE:force-app/main/default/lwc=!" neq "!FILE!" (
+    for %%a in ("!FILE!") do (
+        set "COMPONENT=%%~dpa"
+        set "COMPONENT=!COMPONENT:~0,-1!"
+        for %%b in ("!COMPONENT!") do (
+            xcopy "%%b" "%DELTA_DIR%\src\lwc\%%~nxb" /E /I /Y >nul
+        )
     )
 )
 
-:: Copy the package.xml for deployment
-if exist "package.xml" (
-    copy "package.xml" "delta\package.xml" >nul
+        )
+    )
 )
+
+REM Generate simple package.xml
+(
+echo ^<?xml version="1.0" encoding="UTF-8"?^>
+echo ^<Package xmlns="http://soap.sforce.com/2006/04/metadata"^>
+echo ^<types^>
+echo     ^<members^>*^</members^>
+echo     ^<name^>ApexClass^</name^>
+echo ^</types^>
+echo ^<types^>
+echo     ^<members^>*^</members^>
+echo     ^<name^>ApexTrigger^</name^>
+echo ^</types^>
+echo ^<types^>
+echo     ^<members^>*^</members^>
+echo     ^<name^>LightningComponentBundle^</name^>
+echo ^</types^>
+echo ^<version^>60.0^</version^>
+echo ^</Package^>
+) > "%DELTA_DIR%\package.xml"
 
 echo.
 echo ========================================
 echo ✅ Delta folder created successfully!
-echo Location: %cd%\delta
+echo Location: %DELTA_DIR%
 echo ========================================
-pause
+endlocal
