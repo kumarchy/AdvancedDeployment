@@ -22,6 +22,7 @@ export default class ContactCreator extends LightningElement {
                 accountId: this.accountId 
             });
             this.message = result;
+            console.log(this.message);
         } catch (error) {
             this.message = 'Error: ' + error.body.message;
         }
