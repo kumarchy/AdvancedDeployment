@@ -1,7 +1,5 @@
-build/build.xml
-changed_files.txt
 delta/changed_files.txt
-delta/package.xml
-force-app/main/default/classes/ContactHandler.cls
-force-app/main/default/lwc/contactCreator/contactCreator.html
+delta/src/lwc/contactCreator/contactCreator.html
+delta/src/lwc/contactCreator/contactCreator.js
+delta/src/lwc/contactCreator/contactCreator.js-meta.xml
 scripts/find-changes.bat
