@@ -57,7 +57,9 @@
         serverurl="${sf.serverurl}"
         deployRoot="delta"
         checkOnly="false"
+        testLevel="RunLocalTests"
         rollbackOnError="true"
+        maxPoll="${sf.maxPoll}"
     />
 </target>
 

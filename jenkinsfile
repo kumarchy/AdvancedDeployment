@@ -1,112 +1,121 @@
 pipeline {
     agent any
-
+    
     environment {
-        // Jenkins credential ID for Salesforce username and password+token
-        SF_USERNAME = credentials('SF_USERNAME')      // Jenkins credentials (username)
-        SF_PASSWORD = credentials('SF_PASSWORD')      // Jenkins credentials (password+token)
-        SF_SERVERURL = "https://login.salesforce.com" // or https://test.salesforce.com for sandbox
-        ANT_HOME = "C:\\apache-ant"                   // Path to your Apache Ant
-        PATH = "${env.PATH};${env.ANT_HOME}\\bin"     // Add Ant to PATH
+        // Salesforce credentials ID from Jenkins
+        SF_CREDENTIALS = 'salesforce-credentials'
+        // Ant installation name from Jenkins Global Tool Configuration
+        ANT_HOME = tool 'Ant'
+        PATH = "${ANT_HOME}/bin;${env.PATH}"
     }
-
+    
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
+                echo '📥 Checking out code from repository...'
                 checkout scm
             }
         }
-
-        stage('Identify Changed Metadata') {
+        
+        stage('Detect Changes') {
             steps {
-                echo 'Detecting changes between commits...'
+                echo '🔍 Detecting changed files...'
+                bat 'scripts\\find-changes.bat'
+            }
+        }
+        
+        stage('Validate Delta') {
+            steps {
+                echo '✅ Validating delta deployment...'
                 script {
-                    // Compare last successful build commit to current one
-                    def prevCommit = sh(script: "git rev-parse HEAD~1", returnStdout: true).trim()
-                    def currCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-
-                    echo "Comparing commits: ${prevCommit} -> ${currCommit}"
-
-                    sh '''
-                        rm -rf delta
-                        mkdir delta
-
-                        git diff --name-only HEAD~1 HEAD > changed_files.txt
-                        echo "Changed files:"
-                        cat changed_files.txt
-
-                        while IFS= read -r file
-                        do
-                          if [[ $file == src/* ]]; then
-                            mkdir -p "delta/$(dirname "$file")"
-                            cp "$file" "delta/$file"
-                          fi
-                        done < changed_files.txt
+                    // Check if delta folder has any files to deploy
+                    def deltaExists = fileExists('delta\\src')
+                    if (!deltaExists) {
+                        echo '⚠️ No changes detected. Skipping deployment.'
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
+                }
+                
+                withCredentials([usernamePassword(
+                    credentialsId: "${SF_CREDENTIALS}",
+                    usernameVariable: 'SF_USERNAME',
+                    passwordVariable: 'SF_PASSWORD'
+                )]) {
+                    bat '''
+                        ant -Dsf.username=%SF_USERNAME% ^
+                            -Dsf.password=%SF_PASSWORD% ^
+                            -Dsf.serverurl=https://login.salesforce.com ^
+                            -buildfile build\\build.xml ^
+                            deltaDeploy
                     '''
                 }
             }
         }
-
-        stage('Generate Delta Package.xml') {
+        
+        stage('Deploy to Salesforce') {
+            when {
+                branch 'main'  // Only deploy from main branch
+            }
             steps {
-                echo 'Generating delta package.xml...'
-                writeFile file: 'delta/package.xml', text: '''<?xml version="1.0" encoding="UTF-8"?>
-<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <types>
-        <members>*</members>
-        <name>ApexClass</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>ApexTrigger</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>LightningComponentBundle</name>
-    </types>
-    <version>59.0</version>
-</Package>
-'''
+                echo '🚀 Deploying to Salesforce...'
+                withCredentials([usernamePassword(
+                    credentialsId: "${SF_CREDENTIALS}",
+                    usernameVariable: 'SF_USERNAME',
+                    passwordVariable: 'SF_PASSWORD'
+                )]) {
+                    bat '''
+                        ant -Dsf.username=%SF_USERNAME% ^
+                            -Dsf.password=%SF_PASSWORD% ^
+                            -Dsf.serverurl=https://login.salesforce.com ^
+                            -buildfile build\\build.xml ^
+                            deltaDeploy
+                    '''
+                }
             }
         }
-
-        stage('Deploy Delta using Ant') {
+        
+        stage('Run Tests') {
+            when {
+                branch 'main'
+            }
             steps {
-                echo 'Starting Salesforce delta deployment...'
-                writeFile file: 'build.properties', text: """
-sf.username=${SF_USERNAME}
-sf.password=${SF_PASSWORD}
-sf.serverurl=${SF_SERVERURL}
-"""
-                writeFile file: 'build.xml', text: '''<?xml version="1.0" encoding="UTF-8"?>
-<project name="SalesforceDeltaDeployment" default="deployDelta">
-    <property file="build.properties"/>
-    <target name="deployDelta">
-        <sf:deploy username="${sf.username}"
-                   password="${sf.password}"
-                   serverurl="${sf.serverurl}"
-                   deployRoot="delta"
-                   testLevel="RunLocalTests"
-                   rollbackOnError="true"
-                   ignoreWarnings="true"
-                   checkOnly="false"/>
-    </target>
-</project>
-'''
-                // Run Ant deployment
-                sh "ant deployDelta"
+                echo '🧪 Running Apex Tests...'
+                withCredentials([usernamePassword(
+                    credentialsId: "${SF_CREDENTIALS}",
+                    usernameVariable: 'SF_USERNAME',
+                    passwordVariable: 'SF_PASSWORD'
+                )]) {
+                    bat '''
+                        ant -Dsf.username=%SF_USERNAME% ^
+                            -Dsf.password=%SF_PASSWORD% ^
+                            -Dsf.serverurl=https://login.salesforce.com ^
+                            -buildfile build\\build.xml ^
+                            runTests
+                    '''
+                }
             }
         }
     }
-
+    
     post {
         success {
-            echo "✅ Deployment successful!"
+            echo '✅ Deployment succeeded!'
+            // Optional: Send notification
+            // emailext subject: "Deployment Success - ${env.JOB_NAME}",
+            //          body: "Build ${env.BUILD_NUMBER} deployed successfully",
+            //          to: "team@example.com"
         }
         failure {
-            echo "❌ Deployment failed. Check the logs for details."
+            echo '❌ Deployment failed!'
+            // Optional: Send notification
+            // emailext subject: "Deployment Failed - ${env.JOB_NAME}",
+            //          body: "Build ${env.BUILD_NUMBER} failed. Check logs.",
+            //          to: "team@example.com"
+        }
+        always {
+            echo '🧹 Cleaning up workspace...'
+            cleanWs()
         }
     }
 }
-
