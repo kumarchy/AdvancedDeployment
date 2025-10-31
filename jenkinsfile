@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         // Salesforce credentials ID from Jenkins
-        SF_CREDENTIALS = 'Jenkins_Integration'
+        SF_CREDENTIALS = 'deltaDeployment'
         // Ant installation name from Jenkins Global Tool Configuration
         ANT_HOME = tool 'Ant'
         PATH = "${ANT_HOME}/bin;${env.PATH}"

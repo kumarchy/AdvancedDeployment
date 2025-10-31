@@ -5,12 +5,15 @@
     <property environment="env"/>
     
     <!-- Set default values for properties -->
-    <condition property="sf.username" value="">
+    <!-- <condition property="sf.username" value="">
         <not><isset property="sf.username"/></not>
     </condition>
     <condition property="sf.password" value="">
         <not><isset property="sf.password"/></not>
-    </condition>
+    </condition> -->
+
+    <condition property="sf.username" value="${env.username}" else="${sf.username}"/>
+   <condition property="sf.password" value="${env.password}" else="${sf.password}"/>
     <condition property="sf.serverurl" value="">
         <not><isset property="sf.serverurl"/></not>
     </condition>
