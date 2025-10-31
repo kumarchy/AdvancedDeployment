@@ -9,7 +9,7 @@ public with sharing class ContactHandler {
             );
             insert con;
             console.log('contact is being created with delta deployment process');
-            console.log('deployment success');
+            console.log('delta deployment process is success');
             
             return 'Contact created successfully with Id: ' + con.Id;
         } catch (Exception e) {
