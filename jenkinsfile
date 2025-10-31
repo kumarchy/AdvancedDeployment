@@ -90,7 +90,7 @@ pipeline {
                             -Dsf.password=%SF_PASSWORD% ^
                             -Dsf.serverurl=https://login.salesforce.com ^
                             -buildfile build\\build.xml ^
-                            deltaDeploy
+                            validate
                     '''
                 }
             }
