@@ -12,11 +12,18 @@
         <not><isset property="sf.password"/></not>
     </condition> -->
 
-    <condition property="sf.username" value="${env.username}" else="${sf.username}"/>
-   <condition property="sf.password" value="${env.password}" else="${sf.password}"/>
-    <condition property="sf.serverurl" value="">
-        <not><isset property="sf.serverurl"/></not>
-    </condition>
+<condition property="sf.username" value="${env.username}" else="${sf.username}">
+    <isset property="env.username"/>
+</condition>
+
+<condition property="sf.password" value="${env.password}" else="${sf.password}">
+    <isset property="env.password"/>
+</condition>
+
+<condition property="sf.serverurl" value="${env.serverurl}" else="https://login.salesforce.com">
+    <isset property="env.serverurl"/>
+</condition>
+
     
     <!-- Salesforce Ant task definition -->
     <taskdef resource="com/salesforce/antlib.xml" uri="antlib:com.salesforce">
