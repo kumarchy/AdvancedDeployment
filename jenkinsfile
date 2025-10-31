@@ -73,7 +73,10 @@ pipeline {
         
         stage('Deploy to Salesforce') {
             when {
-                branch 'main'  // Only deploy from main branch
+                allOf {
+                    branch 'main'  // Only deploy from main branch
+                    expression { env.SKIP_DEPLOYMENT != 'true' }
+                }
             }
             steps {
                 echo '🚀 Deploying to Salesforce...'
@@ -95,7 +98,10 @@ pipeline {
         
         stage('Run Tests') {
             when {
-                branch 'main'
+                allOf {
+                    branch 'main'
+                    expression { env.SKIP_DEPLOYMENT != 'true' }
+                }
             }
             steps {
                 echo '🧪 Running Apex Tests...'
@@ -118,7 +124,13 @@ pipeline {
     
     post {
         success {
-            echo '✅ Deployment succeeded!'
+            script {
+                if (env.SKIP_DEPLOYMENT == 'true') {
+                    echo '✅ Build succeeded - No Salesforce changes to deploy'
+                } else {
+                    echo '✅ Deployment succeeded!'
+                }
+            }
             // Optional: Send notification
             // emailext subject: "Deployment Success - ${env.JOB_NAME}",
             //          body: "Build ${env.BUILD_NUMBER} deployed successfully",
