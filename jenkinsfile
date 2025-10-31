@@ -73,10 +73,11 @@ pipeline {
         
         stage('Deploy to Salesforce') {
             when {
-                allOf {
-                    branch 'main'  // Only deploy from main branch
-                    expression { env.SKIP_DEPLOYMENT != 'true' }
-                }
+                    branch 'main'
+                // allOf {
+                //   // Only deploy from main branch
+                //     expression { env.SKIP_DEPLOYMENT != 'true' }
+                // }
             }
             steps {
                 echo '🚀 Deploying to Salesforce...'
@@ -98,10 +99,7 @@ pipeline {
         
         stage('Run Tests') {
             when {
-                allOf {
-                    branch 'main'
-                    expression { env.SKIP_DEPLOYMENT != 'true' }
-                }
+                 branch 'main'
             }
             steps {
                 echo '🧪 Running Apex Tests...'
