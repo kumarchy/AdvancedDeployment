@@ -35,7 +35,7 @@ pipeline {
                     if (!deltaExists || !packageExists) {
                         echo '⚠️ No Salesforce metadata changes detected. Skipping deployment.'
                         echo 'Note: Only files in force-app/main/default/ trigger deployments'
-                        currentBuild.result = 'SUCCESS'
+                        env.SKIP_DEPLOYMENT = 'true'
                         return
                     }
                     
@@ -47,23 +47,26 @@ pipeline {
                     
                     if (!srcHasFiles) {
                         echo '⚠️ Delta folder exists but contains no metadata. Skipping deployment.'
-                        currentBuild.result = 'SUCCESS'
+                        env.SKIP_DEPLOYMENT = 'true'
                         return
                     }
-                }
-                
-                withCredentials([usernamePassword(
-                    credentialsId: "${SF_CREDENTIALS}",
-                    usernameVariable: 'SF_USERNAME',
-                    passwordVariable: 'SF_PASSWORD'
-                )]) {
-                    bat '''
-                        ant -Dsf.username=%SF_USERNAME% ^
-                            -Dsf.password=%SF_PASSWORD% ^
-                            -Dsf.serverurl=https://login.salesforce.com ^
-                            -buildfile build\\build.xml ^
-                            deltaDeploy
-                    '''
+                    
+                    echo '✅ Delta folder contains metadata. Proceeding with deployment...'
+                    env.SKIP_DEPLOYMENT = 'false'
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: "${SF_CREDENTIALS}",
+                        usernameVariable: 'SF_USERNAME',
+                        passwordVariable: 'SF_PASSWORD'
+                    )]) {
+                        bat '''
+                            ant -Dsf.username=%SF_USERNAME% ^
+                                -Dsf.password=%SF_PASSWORD% ^
+                                -Dsf.serverurl=https://login.salesforce.com ^
+                                -buildfile build\\build.xml ^
+                                deltaDeploy
+                        '''
+                    }
                 }
             }
         }
