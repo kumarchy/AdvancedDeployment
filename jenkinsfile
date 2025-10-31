@@ -28,10 +28,25 @@ pipeline {
             steps {
                 echo '✅ Validating delta deployment...'
                 script {
-                    // Check if delta folder has any files to deploy
+                    // Check if delta folder has any Salesforce files
                     def deltaExists = fileExists('delta\\src')
-                    if (!deltaExists) {
-                        echo '⚠️ No changes detected. Skipping deployment.'
+                    def packageExists = fileExists('delta\\package.xml')
+                    
+                    if (!deltaExists || !packageExists) {
+                        echo '⚠️ No Salesforce metadata changes detected. Skipping deployment.'
+                        echo 'Note: Only files in force-app/main/default/ trigger deployments'
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
+                    
+                    // Check if src folder has any content
+                    def srcHasFiles = bat(
+                        script: '@dir /b delta\\src 2>nul | findstr ".*"',
+                        returnStatus: true
+                    ) == 0
+                    
+                    if (!srcHasFiles) {
+                        echo '⚠️ Delta folder exists but contains no metadata. Skipping deployment.'
                         currentBuild.result = 'SUCCESS'
                         return
                     }
