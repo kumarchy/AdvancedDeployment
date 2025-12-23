@@ -19,6 +19,6 @@ private class ContactHandlerTest {
 
         // Verify trigger effect (Account description updated)
         Account updatedAcc = [SELECT Description FROM Account WHERE Id = :acc.Id];
-        System.assert(updatedAcc.Description != null, 'Description should be set by trigger');
+        System.assert(updatedAcc.Description != null, 'Description should be set by trigger carefully');
     }
 }
