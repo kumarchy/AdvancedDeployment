@@ -6,7 +6,7 @@ pipeline {
         SF_CREDENTIALS = 'deltaDeployment'
         // Ant installation name from Jenkins Global Tool Configuration
         ANT_HOME = tool 'Ant'
-        PATH = "${ANT_HOME}/bin:${env.PATH}"
+        PATH = "${ANT_HOME}/bin;${env.PATH}"
     }
     
     stages {
@@ -20,78 +20,52 @@ pipeline {
         stage('Detect Changes') {
             steps {
                 echo '🔍 Detecting changed files...'
-                script {
-                    def result = bat(
-                        script: 'scripts\\find-changes.bat',
-                        returnStatus: true
-                    )
-                    
-                    if (result != 0) {
-                        error "Failed to detect changes"
-                    }
-                }
+                bat 'scripts\\find-changes.bat'
             }
         }
         
-        stage('Check Delta') {
+        stage('Validate Delta') {
             steps {
-                echo '📦 Checking if deployment is needed...'
+                echo '✅ Validating delta deployment...'
                 script {
                     // Check if delta folder has any Salesforce files
                     def deltaExists = fileExists('delta\\src')
                     def packageExists = fileExists('delta\\package.xml')
                     
                     if (!deltaExists || !packageExists) {
-                        echo '⚠️ No Salesforce metadata changes detected.'
-                        echo 'ℹ️ Only files in force-app/main/default/ trigger deployments'
+                        echo '⚠️ No Salesforce metadata changes detected. Skipping deployment.'
+                        echo 'Note: Only files in force-app/main/default/ trigger deployments'
                         env.SKIP_DEPLOYMENT = 'true'
-                        currentBuild.result = 'SUCCESS'
                         return
                     }
                     
                     // Check if src folder has any content
                     def srcHasFiles = bat(
-                        script: '@dir /b /s delta\\src\\*.* 2>nul',
+                        script: '@dir /b delta\\src 2>nul | findstr ".*"',
                         returnStatus: true
                     ) == 0
                     
                     if (!srcHasFiles) {
-                        echo '⚠️ Delta folder exists but contains no metadata.'
+                        echo '⚠️ Delta folder exists but contains no metadata. Skipping deployment.'
                         env.SKIP_DEPLOYMENT = 'true'
-                        currentBuild.result = 'SUCCESS'
                         return
                     }
                     
-                    echo '✅ Delta folder contains metadata. Proceeding with validation...'
+                    echo '✅ Delta folder contains metadata. Proceeding with deployment...'
                     env.SKIP_DEPLOYMENT = 'false'
                     
-                    // Show what will be deployed
-                    echo '📄 Files to be deployed:'
-                    bat 'type delta\\changed_files.txt'
-                }
-            }
-        }
-        
-        stage('Validate Deployment') {
-            when {
-                expression { env.SKIP_DEPLOYMENT != 'true' }
-            }
-            steps {
-                echo '✅ Validating deployment (checkOnly=true)...'
-                withCredentials([usernamePassword(
-                    credentialsId: "${SF_CREDENTIALS}",
-                    usernameVariable: 'SF_USERNAME',
-                    passwordVariable: 'SF_PASSWORD'
-                )]) {
-                    script {
-                        // Use environment variables instead of -D flags
-                        bat """
-                            set username=%SF_USERNAME%
-                            set password=%SF_PASSWORD%
-                            set serverurl=https://login.salesforce.com
-                            cd build
-                            ant validate
-                        """
+                    withCredentials([usernamePassword(
+                        credentialsId: "${SF_CREDENTIALS}",
+                        usernameVariable: 'SF_USERNAME',
+                        passwordVariable: 'SF_PASSWORD'
+                    )]) {
+                        bat '''
+                            ant -Dsf.username=%SF_USERNAME% ^
+                                -Dsf.password=%SF_PASSWORD% ^
+                                -Dsf.serverurl=https://login.salesforce.com ^
+                                -buildfile build\\build.xml ^
+                                deltaDeploy
+                        '''
                     }
                 }
             }
@@ -111,15 +85,13 @@ pipeline {
                     usernameVariable: 'SF_USERNAME',
                     passwordVariable: 'SF_PASSWORD'
                 )]) {
-                    script {
-                        bat """
-                            set username=%SF_USERNAME%
-                            set password=%SF_PASSWORD%
-                            set serverurl=https://login.salesforce.com
-                            cd build
-                            ant deltaDeploy
-                        """
-                    }
+                    bat '''
+                        ant -Dsf.username=%SF_USERNAME% ^
+                            -Dsf.password=%SF_PASSWORD% ^
+                            -Dsf.serverurl=https://login.salesforce.com ^
+                            -buildfile build\\build.xml ^
+                            deltaDeploy
+                    '''
                 }
             }
         }
@@ -138,40 +110,40 @@ pipeline {
                     usernameVariable: 'SF_USERNAME',
                     passwordVariable: 'SF_PASSWORD'
                 )]) {
-                    script {
-                        bat """
-                            set username=%SF_USERNAME%
-                            set password=%SF_PASSWORD%
-                            set serverurl=https://login.salesforce.com
-                            cd build
-                            ant runTests
-                        """
-                    }
+                    bat '''
+                        ant -Dsf.username=%SF_USERNAME% ^
+                            -Dsf.password=%SF_PASSWORD% ^
+                            -Dsf.serverurl=https://login.salesforce.com ^
+                            -buildfile build\\build.xml ^
+                            runTests
+                    '''
                 }
             }
         }
     }
-    
     post {
         success {
             script {
                 if (env.SKIP_DEPLOYMENT == 'true') {
                     echo '✅ Build succeeded - No Salesforce changes to deploy'
-                    echo 'ℹ️ Pipeline completed without deployment'
                 } else {
                     echo '✅ Deployment succeeded!'
-                    echo '🎉 All stages completed successfully'
                 }
             }
+            // Optional: Send notification
+            // emailext subject: "Deployment Success - ${env.JOB_NAME}",
+            //          body: "Build ${env.BUILD_NUMBER} deployed successfully",
+            //          to: "team@example.com"
         }
         failure {
-            echo '❌ Pipeline failed!'
-            echo '🔍 Check the console output for details'
+            echo '❌ Deployment failed!'
+            // Optional: Send notification
+            // emailext subject: "Deployment Failed - ${env.JOB_NAME}",
+            //          body: "Build ${env.BUILD_NUMBER} failed. Check logs.",
+            //          to: "team@example.com"
         }
         always {
             echo '🧹 Cleaning up workspace...'
-            // Archive artifacts for debugging
-            archiveArtifacts artifacts: 'delta/**/*', allowEmptyArchive: true
             cleanWs()
         }
     }
