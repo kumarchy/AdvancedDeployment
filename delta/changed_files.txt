@@ -1,1 +1,2 @@
-force-app/main/default/lwc/contactCreator/contactCreator.html
+build/build - Copy.properties
+build/build.properties

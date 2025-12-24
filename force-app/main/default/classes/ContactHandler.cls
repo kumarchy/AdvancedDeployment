@@ -8,9 +8,7 @@ public with sharing class ContactHandler {
                 AccountId = accountId
             );
             insert con;
-            console.log('contact is being created with delta deployment process');
-            console.log('delta deployment process is success ---');
-            
+                        
             return 'Contact created successfully with Id: ' + con.Id;
         } catch (Exception e) {
             throw new AuraHandledException('Error: ' + e.getMessage());
