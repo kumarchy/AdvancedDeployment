@@ -5,8 +5,12 @@
 package.xml
 
 # LWC configuration files
+**jsconfig.json
 **/jsconfig.json
+
 **/.eslintrc.json
+**/.prettierrc
+**/.vscode/
 
 # LWC Jest
 **/__tests__/**
@@ -14,3 +18,7 @@ package.xml
 
 # Node modules
 **/node_modules/**
+
+# Other config files
+package.json
+package-lock.json

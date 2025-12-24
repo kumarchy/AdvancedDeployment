@@ -1,2 +1,4 @@
-build/build - Copy.properties
-build/build.properties
+delta/changed_files.txt
+delta/package.xml
+delta/src/lwc/contactCreator/contactCreator.html
+force-app/main/default/classes/ContactHandler.cls
