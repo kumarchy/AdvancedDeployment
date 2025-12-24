@@ -32,7 +32,8 @@
         </classpath>
     </taskdef>
     
-    <!-- Retrieve metadata from Salesforce org -->
+    <!-- Retrieve metadata from Salesforce org (this time only for demo) in real scenerios developers push code to github, so i need to 
+    fetch that github code, not from salesforce org usually then validate and delta deploy-->
     <target name="retrieve">
         <echo message="Retrieving metadata from Salesforce..."/>
         <sf:retrieve username="${sf.username}" 
