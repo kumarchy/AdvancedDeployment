@@ -1,3 +1,7 @@
-build/build - Copy.properties
-build/build.properties
-build/build.xml
+.gitignore
+delta/changed_files.txt
+delta/package.xml
+delta/src/classes/ContactHandler.cls
+delta/src/lwc/contactCreator/contactCreator.html
+force-app/main/default/lwc/contactCreator/contactCreator.html
+force-app/main/default/triggers/ContactTrigger.trigger
