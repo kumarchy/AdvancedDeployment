@@ -11,7 +11,7 @@ trigger ContactTrigger on Contact (after insert) {
     if (!accountIds.isEmpty()) {
         List<Account> accLists = [SELECT Id, Description FROM Account WHERE Id IN :accountIds];
         for (Account acc : accLists) {
-            acc.Description = 'Contact added on ' + DateTime.now().format();
+            acc.Description = 'Contact added on successfully ' + DateTime.now().format();
         }
         update accLists;
     }
