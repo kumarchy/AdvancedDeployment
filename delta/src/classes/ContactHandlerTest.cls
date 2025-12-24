@@ -11,7 +11,7 @@ private class ContactHandlerTest {
         String result = ContactHandler.createContact('John', 'Doe', acc.Id);
         Test.stopTest();
 
-        System.assert(result.contains('Contact created successfully bro'));
+        System.assert(result.contains('Contact created successfully'));
         
         // Verify Contact inserted
         Contact con = [SELECT Id, AccountId FROM Contact WHERE LastName = 'Doe' LIMIT 1];
