@@ -8,8 +8,8 @@ public with sharing class ContactHandler {
                 AccountId = accountId
             );
             insert con;
-                        
-            return 'Contact created successfully with Id: ' + con.Id;
+
+            return 'Contact created successfully with - Id: ' + con.Id;
         } catch (Exception e) {
             throw new AuraHandledException('Error: ' + e.getMessage());
         }

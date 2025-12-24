@@ -1,4 +1,8 @@
+.forceignore
 delta/changed_files.txt
 delta/package.xml
-delta/src/lwc/contactCreator/contactCreator.html
+delta/src/classes/ContactHandler.cls
 force-app/main/default/classes/ContactHandler.cls
+force-app/main/default/lwc/contactCreator/contactCreator.html
+force-app/main/default/triggers/ContactTrigger.trigger
+jenkinsfile
