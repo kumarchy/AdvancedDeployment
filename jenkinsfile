@@ -30,39 +30,39 @@ pipeline {
         }
 
         stage('Collect Commit Details') {
-            steps {
-                script {
-                    env.CURRENT_TIME = bat(
-                        script: '@echo %date% %time%',
-                        returnStdout: true
-                    ).trim()
+    steps {
+        script {
+            env.CURRENT_TIME = bat(
+                script: 'echo %date% %time%',
+                returnStdout: true
+            ).trim()
 
-                    env.COMMIT_HASH = bat(
-                        script: '@git rev-parse HEAD',
-                        returnStdout: true
-                    ).trim()
+            env.COMMIT_HASH = bat(
+                script: 'git rev-parse HEAD',
+                returnStdout: true
+            ).trim()
 
-                    env.COMMIT_AUTHOR = bat(
-                        script: '@git log -1 --pretty=format:%%an',
-                        returnStdout: true
-                    ).trim()
+            env.COMMIT_AUTHOR = bat(
+                script: 'git log -1 --pretty=format:%an',
+                returnStdout: true
+            ).trim()
 
-                    env.COMMIT_MESSAGE = bat(
-                        script: '@git log -1 --pretty=format:%%s',
-                        returnStdout: true
-                    ).trim()
+            env.COMMIT_MESSAGE = bat(
+                script: 'git log -1 --pretty=format:%s',
+                returnStdout: true
+            ).trim()
 
-                    env.CODE_DIFF = bat(
-                        script: '@git diff --name-status HEAD~1 HEAD',
-                        returnStdout: true
-                    ).trim()
+            env.CODE_DIFF = bat(
+                script: 'git diff --name-status HEAD~1 HEAD',
+                returnStdout: true
+            ).trim()
 
-                    if (!env.CODE_DIFF) {
-                        env.CODE_DIFF = 'No file changes detected'
-                    }
-                }
+            if (!env.CODE_DIFF) {
+                env.CODE_DIFF = 'No file changes detected'
             }
         }
+    }
+}
 
         stage('Generate Delta Package') {
             steps {
@@ -72,30 +72,32 @@ pipeline {
         }
 
         stage('Validate & Deploy Delta') {
-            steps {
-                script {
-                    if (!fileExists('delta\\src') || !fileExists('delta\\package.xml')) {
-                        echo '⚠️ No delta found. Skipping deployment.'
-                        return
-                    }
+    steps {
+        script {
+            if (!fileExists('delta\\src') || !fileExists('delta\\package.xml')) {
+                echo '⚠️ No delta found. Skipping deployment.'
+                env.DEPLOY_STATUS = 'SKIPPED'
+                return
+            }
 
-                    withCredentials([usernamePassword(
-                        credentialsId: env.SF_CREDENTIALS,
-                        usernameVariable: 'SF_USERNAME',
-                        passwordVariable: 'SF_PASSWORD'
-                    )]) {
-                        bat """
-                            ant -Dsf.username=%SF_USERNAME% ^
-                                -Dsf.password=%SF_PASSWORD% ^
-                                -Dsf.serverurl=https://login.salesforce.com ^
-                                -buildfile build\\build.xml ^
-                                deltaDeploy
-                        """
-                        env.DEPLOY_STATUS = 'SUCCESS'
-                    }
-                }
+            withCredentials([usernamePassword(
+                credentialsId: env.SF_CREDENTIALS,
+                usernameVariable: 'SF_USERNAME',
+                passwordVariable: 'SF_PASSWORD'
+            )]) {
+                bat """
+                    ant -Dsf.username=%SF_USERNAME% ^
+                        -Dsf.password=%SF_PASSWORD% ^
+                        -Dsf.serverurl=https://login.salesforce.com ^
+                        -buildfile build\\build.xml ^
+                        deltaDeploy
+                """
+                env.DEPLOY_STATUS = 'SUCCESS'
             }
         }
+    }
+}
+
     }
 
     post {

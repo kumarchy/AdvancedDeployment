@@ -1,3 +1,4 @@
+delta/changed_files.txt
 delta/src/lwc/contactCreator/contactCreator.html
 force-app/main/default/lwc/contactCreator/contactCreator.html
 jenkinsfile
