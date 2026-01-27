@@ -1,8 +1,1 @@
-delta/changed_files.txt
-delta/src/classes/ContactHandlerTest.cls
-delta/src/lwc/contactCreator/contactCreator.html
-delta/src/triggers/ContactTrigger.trigger
-force-app/main/default/classes/ContactHandler.cls
 force-app/main/default/lwc/contactCreator/contactCreator.html
-force-app/main/default/triggers/ContactTrigger.trigger
-jenkinsfile

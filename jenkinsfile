@@ -1,101 +1,113 @@
 pipeline {
     agent any
-    
+
     environment {
-        // Salesforce credentials ID from Jenkins
         SF_CREDENTIALS = 'deltaDeployment'
-        // Ant installation name from Jenkins Global Tool Configuration
         ANT_HOME = tool 'Ant'
         PATH = "${ANT_HOME}/bin;${env.PATH}"
+
+        DEPLOY_STATUS = 'SKIPPED'
+        DEPLOY_ERROR = ''
+        COMMIT_HASH = ''
+        COMMIT_AUTHOR = ''
+        COMMIT_MESSAGE = ''
+        CODE_DIFF = ''
+        CURRENT_TIME = ''
     }
-    
+
     stages {
+
         stage('Checkout') {
             steps {
-                echo '📥 Checking out code from repository...'
+                echo '📥 Checking out repository...'
                 checkout scm
             }
         }
-        
+
+        stage('Collect Commit Details') {
+            steps {
+                script {
+                    env.CURRENT_TIME = bat(
+                        script: '@echo %date% %time%',
+                        returnStdout: true
+                    ).trim()
+
+                    env.COMMIT_HASH = bat(
+                        script: '@git log -1 --pretty=format:%%H',
+                        returnStdout: true
+                    ).trim()
+
+                    env.COMMIT_AUTHOR = bat(
+                        script: '@git log -1 --pretty=format:%%an',
+                        returnStdout: true
+                    ).trim()
+
+                    env.COMMIT_MESSAGE = bat(
+                        script: '@git log -1 --pretty=format:%%s',
+                        returnStdout: true
+                    ).trim()
+
+                    env.CODE_DIFF = bat(
+                        script: '@git diff --name-status HEAD~1 HEAD 2>nul',
+                        returnStdout: true
+                    ).trim()
+
+                    if (!env.CODE_DIFF) {
+                        env.CODE_DIFF = 'No file changes detected'
+                    }
+
+                    echo "Commit: ${env.COMMIT_HASH}"
+                    echo "Author: ${env.COMMIT_AUTHOR}"
+                    echo "Message: ${env.COMMIT_MESSAGE}"
+                }
+            }
+        }
+
         stage('Detect Changes') {
             steps {
-                echo '🔍 Detecting changed files...'
+                echo '🔍 Detecting delta changes...'
                 bat 'scripts\\find-changes.bat'
             }
         }
-        
+
         stage('Validate Delta') {
             steps {
-                echo '✅ Validating delta deployment...'
                 script {
-                    // Check if delta folder has any Salesforce files
                     def deltaExists = fileExists('delta\\src')
                     def packageExists = fileExists('delta\\package.xml')
-                    
+
                     if (!deltaExists || !packageExists) {
-                        echo '⚠️ No Salesforce metadata changes detected. Skipping deployment.'
-                        echo 'Note: Only files in force-app/main/default/ trigger deployments'
+                        echo '⚠️ No Salesforce metadata changes detected'
                         env.SKIP_DEPLOYMENT = 'true'
                         return
                     }
-                    
-                    // Check if src folder has any content
-                    def srcHasFiles = bat(
-                        script: '@dir /b delta\\src 2>nul | findstr ".*"',
-                        returnStatus: true
-                    ) == 0
-                    
-                    if (!srcHasFiles) {
-                        echo '⚠️ Delta folder exists but contains no metadata. Skipping deployment.'
-                        env.SKIP_DEPLOYMENT = 'true'
-                        return
-                    }
-                    
-                    echo '✅ Delta folder contains metadata. Proceeding with deployment...'
+
                     env.SKIP_DEPLOYMENT = 'false'
-                    
+
                     withCredentials([usernamePassword(
-                        credentialsId: "${SF_CREDENTIALS}",
+                        credentialsId: env.SF_CREDENTIALS,
                         usernameVariable: 'SF_USERNAME',
                         passwordVariable: 'SF_PASSWORD'
                     )]) {
-                        bat '''
-                            ant -Dsf.username=%SF_USERNAME% ^
-                                -Dsf.password=%SF_PASSWORD% ^
-                                -Dsf.serverurl=https://login.salesforce.com ^
-                                -buildfile build\\build.xml ^
-                                deltaDeploy
-                        '''
+                        try {
+                            bat '''
+                                ant -Dsf.username=%SF_USERNAME% ^
+                                    -Dsf.password=%SF_PASSWORD% ^
+                                    -Dsf.serverurl=https://login.salesforce.com ^
+                                    -buildfile build\\build.xml ^
+                                    deltaDeploy
+                            '''
+                            env.DEPLOY_STATUS = 'SUCCESS'
+                        } catch (Exception e) {
+                            env.DEPLOY_STATUS = 'FAILED'
+                            env.DEPLOY_ERROR = e.getMessage()
+                            throw e
+                        }
                     }
                 }
             }
         }
-        
-        stage('Deploy to Salesforce') {
-            when {
-                allOf {
-                    branch 'main'  // Only deploy from main branch
-                    expression { env.SKIP_DEPLOYMENT != 'true' }
-                }
-            }
-            steps {
-                echo '🚀 Deploying to Salesforce...'
-                withCredentials([usernamePassword(
-                    credentialsId: "${SF_CREDENTIALS}",
-                    usernameVariable: 'SF_USERNAME',
-                    passwordVariable: 'SF_PASSWORD'
-                )]) {
-                    bat '''
-                        ant -Dsf.username=%SF_USERNAME% ^
-                            -Dsf.password=%SF_PASSWORD% ^
-                            -Dsf.serverurl=https://login.salesforce.com ^
-                            -buildfile build\\build.xml ^
-                            deltaDeploy
-                    '''
-                }
-            }
-        }
-        
+
         stage('Run Tests') {
             when {
                 allOf {
@@ -106,7 +118,7 @@ pipeline {
             steps {
                 echo '🧪 Running Apex Tests...'
                 withCredentials([usernamePassword(
-                    credentialsId: "${SF_CREDENTIALS}",
+                    credentialsId: env.SF_CREDENTIALS,
                     usernameVariable: 'SF_USERNAME',
                     passwordVariable: 'SF_PASSWORD'
                 )]) {
@@ -121,29 +133,84 @@ pipeline {
             }
         }
     }
+
     post {
-        success {
+        always {
             script {
-                if (env.SKIP_DEPLOYMENT == 'true') {
-                    echo '✅ Build succeeded - No Salesforce changes to deploy'
-                } else {
-                    echo '✅ Deployment succeeded!'
+                withCredentials([string(credentialsId: 'teams-webhook', variable: 'TEAMS_URL')]) {
+
+                    def color = 'ffc107'
+                    if (env.DEPLOY_STATUS == 'SUCCESS') color = '28a745'
+                    if (env.DEPLOY_STATUS == 'FAILED') color = 'dc3545'
+
+                    def payload = """
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "summary": "Salesforce Deployment Notification",
+  "themeColor": "${color}",
+  "title": "🚀 Salesforce Delta Deployment",
+  "sections": [
+    {
+      "facts": [
+        { "name": "📦 Target Org", "value": "${env.SF_CREDENTIALS}" },
+        { "name": "⏰ Time", "value": "${env.CURRENT_TIME}" },
+        { "name": "✅ Status", "value": "${env.DEPLOY_STATUS}" },
+        { "name": "👤 Author", "value": "${env.COMMIT_AUTHOR}" },
+        { "name": "🔨 Commit", "value": "${env.COMMIT_HASH.substring(0,8)}" },
+        { "name": "💬 Message", "value": "${env.COMMIT_MESSAGE}" }
+      ],
+      "markdown": true
+    },
+    {
+      "title": "📝 Code Changes",
+      "text": "```${env.CODE_DIFF}```"
+    }
+"""
+
+                    if (env.DEPLOY_STATUS == 'FAILED') {
+                        payload += """,
+    {
+      "title": "❌ Deployment Error",
+      "text": "```${env.DEPLOY_ERROR}```"
+    }
+"""
+                    }
+
+                    payload += """
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Jenkins Build",
+      "targets": [
+        { "os": "default", "uri": "${env.BUILD_URL}" }
+      ]
+    }
+  ]
+}
+"""
+
+                    writeFile file: 'teams_payload.json', text: payload
+
+                    bat '''
+                    curl -H "Content-Type: application/json" ^
+                         -X POST "%TEAMS_URL%" ^
+                         --data-binary @teams_payload.json
+                    '''
                 }
             }
-            // Optional: Send notification
-            // emailext subject: "Deployment Success - ${env.JOB_NAME}",
-            //          body: "Build ${env.BUILD_NUMBER} deployed successfully",
-            //          to: "team@example.com"
         }
+
+        success {
+            echo '✅ Pipeline completed successfully'
+        }
+
         failure {
-            echo '❌ Deployment failed!'
-            // Optional: Send notification
-            // emailext subject: "Deployment Failed - ${env.JOB_NAME}",
-            //          body: "Build ${env.BUILD_NUMBER} failed. Check logs.",
-            //          to: "team@example.com"
+            echo '❌ Pipeline failed'
         }
+
         always {
-            echo '🧹 Cleaning up workspace...'
             cleanWs()
         }
     }
