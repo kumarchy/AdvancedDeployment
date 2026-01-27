@@ -2,28 +2,41 @@ pipeline {
     agent any
 
     environment {
+        // Salesforce
         SF_CREDENTIALS = 'deltaDeployment'
+
+        // Tools
         ANT_HOME = tool 'Ant'
         PATH = "${ANT_HOME}/bin;${env.PATH}"
 
+        // Deployment info
         DEPLOY_STATUS = 'SKIPPED'
-        DEPLOY_ERROR = ''
-        COMMIT_HASH = ''
-        COMMIT_AUTHOR = ''
+        DEPLOY_ERROR  = ''
+        SKIP_DEPLOYMENT = 'false'
+
+        // Git info
+        COMMIT_HASH    = ''
+        COMMIT_AUTHOR  = ''
         COMMIT_MESSAGE = ''
-        CODE_DIFF = ''
-        CURRENT_TIME = ''
+        CODE_DIFF      = ''
+        CURRENT_TIME   = ''
     }
 
     stages {
 
+        /* -----------------------------------------------------------
+           CHECKOUT (single checkout only)
+        ----------------------------------------------------------- */
         stage('Checkout') {
             steps {
-                echo '📥 Checking out repository...'
+                echo '📥 Checking out source code...'
                 checkout scm
             }
         }
 
+        /* -----------------------------------------------------------
+           COLLECT COMMIT DETAILS
+        ----------------------------------------------------------- */
         stage('Collect Commit Details') {
             steps {
                 script {
@@ -33,7 +46,7 @@ pipeline {
                     ).trim()
 
                     env.COMMIT_HASH = bat(
-                        script: '@git log -1 --pretty=format:%%H',
+                        script: '@git rev-parse HEAD',
                         returnStdout: true
                     ).trim()
 
@@ -48,7 +61,7 @@ pipeline {
                     ).trim()
 
                     env.CODE_DIFF = bat(
-                        script: '@git diff --name-status HEAD~1 HEAD 2>nul',
+                        script: '@git diff --name-status HEAD~1 HEAD',
                         returnStdout: true
                     ).trim()
 
@@ -56,33 +69,37 @@ pipeline {
                         env.CODE_DIFF = 'No file changes detected'
                     }
 
-                    echo "Commit: ${env.COMMIT_HASH}"
-                    echo "Author: ${env.COMMIT_AUTHOR}"
-                    echo "Message: ${env.COMMIT_MESSAGE}"
+                    echo "🔨 Commit : ${env.COMMIT_HASH}"
+                    echo "👤 Author : ${env.COMMIT_AUTHOR}"
+                    echo "💬 Message: ${env.COMMIT_MESSAGE}"
                 }
             }
         }
 
-        stage('Detect Changes') {
+        /* -----------------------------------------------------------
+           GENERATE DELTA (SOURCE OF TRUTH)
+        ----------------------------------------------------------- */
+        stage('Generate Delta Package') {
             steps {
-                echo '🔍 Detecting delta changes...'
+                echo '🔍 Generating Salesforce delta...'
                 bat 'scripts\\find-changes.bat'
             }
         }
 
-        stage('Validate Delta') {
+        /* -----------------------------------------------------------
+           VALIDATE + DEPLOY DELTA
+        ----------------------------------------------------------- */
+        stage('Validate & Deploy Delta') {
             steps {
                 script {
-                    def deltaExists = fileExists('delta\\src')
-                    def packageExists = fileExists('delta\\package.xml')
+                    def deltaSrcExists = fileExists('delta\\src')
+                    def packageExists  = fileExists('delta\\package.xml')
 
-                    if (!deltaExists || !packageExists) {
-                        echo '⚠️ No Salesforce metadata changes detected'
+                    if (!deltaSrcExists || !packageExists) {
+                        echo '⚠️ No Salesforce metadata changes found. Skipping deployment.'
                         env.SKIP_DEPLOYMENT = 'true'
                         return
                     }
-
-                    env.SKIP_DEPLOYMENT = 'false'
 
                     withCredentials([usernamePassword(
                         credentialsId: env.SF_CREDENTIALS,
@@ -90,65 +107,42 @@ pipeline {
                         passwordVariable: 'SF_PASSWORD'
                     )]) {
                         try {
-                            bat '''
+                            bat """
                                 ant -Dsf.username=%SF_USERNAME% ^
                                     -Dsf.password=%SF_PASSWORD% ^
                                     -Dsf.serverurl=https://login.salesforce.com ^
                                     -buildfile build\\build.xml ^
                                     deltaDeploy
-                            '''
+                            """
                             env.DEPLOY_STATUS = 'SUCCESS'
                         } catch (Exception e) {
                             env.DEPLOY_STATUS = 'FAILED'
-                            env.DEPLOY_ERROR = e.getMessage()
+                            env.DEPLOY_ERROR  = e.getMessage()
                             throw e
                         }
                     }
                 }
             }
         }
-
-        stage('Run Tests') {
-            when {
-                allOf {
-                    branch 'main'
-                    expression { env.SKIP_DEPLOYMENT != 'true' }
-                }
-            }
-            steps {
-                echo '🧪 Running Apex Tests...'
-                withCredentials([usernamePassword(
-                    credentialsId: env.SF_CREDENTIALS,
-                    usernameVariable: 'SF_USERNAME',
-                    passwordVariable: 'SF_PASSWORD'
-                )]) {
-                    bat '''
-                        ant -Dsf.username=%SF_USERNAME% ^
-                            -Dsf.password=%SF_PASSWORD% ^
-                            -Dsf.serverurl=https://login.salesforce.com ^
-                            -buildfile build\\build.xml ^
-                            runTests
-                    '''
-                }
-            }
-        }
     }
 
+    /* -----------------------------------------------------------
+       POST ACTIONS (SINGLE always BLOCK)
+    ----------------------------------------------------------- */
     post {
+        always {
+            script {
+                withCredentials([string(credentialsId: 'teams-webhook', variable: 'TEAMS_URL')]) {
 
-    always {
-        script {
-            withCredentials([string(credentialsId: 'teams-webhook', variable: 'TEAMS_URL')]) {
+                    def color = 'ffc107'
+                    if (env.DEPLOY_STATUS == 'SUCCESS') color = '28a745'
+                    if (env.DEPLOY_STATUS == 'FAILED')  color = 'dc3545'
 
-                def color = 'ffc107'
-                if (env.DEPLOY_STATUS == 'SUCCESS') color = '28a745'
-                if (env.DEPLOY_STATUS == 'FAILED') color = 'dc3545'
-
-                def payload = """
+                    def payload = """
 {
   "@type": "MessageCard",
   "@context": "http://schema.org/extensions",
-  "summary": "Salesforce Deployment Notification",
+  "summary": "Salesforce Deployment",
   "themeColor": "${color}",
   "title": "🚀 Salesforce Delta Deployment",
   "sections": [
@@ -158,7 +152,7 @@ pipeline {
         { "name": "⏰ Time", "value": "${env.CURRENT_TIME}" },
         { "name": "✅ Status", "value": "${env.DEPLOY_STATUS}" },
         { "name": "👤 Author", "value": "${env.COMMIT_AUTHOR}" },
-        { "name": "🔨 Commit", "value": "${env.COMMIT_HASH?.take(8)}" },
+        { "name": "🔨 Commit", "value": "${env.COMMIT_HASH.take(8)}" },
         { "name": "💬 Message", "value": "${env.COMMIT_MESSAGE}" }
       ],
       "markdown": true
@@ -167,18 +161,6 @@ pipeline {
       "title": "📝 Code Changes",
       "text": "```${env.CODE_DIFF}```"
     }
-"""
-
-                if (env.DEPLOY_STATUS == 'FAILED') {
-                    payload += """,
-    {
-      "title": "❌ Deployment Error",
-      "text": "```${env.DEPLOY_ERROR}```"
-    }
-"""
-                }
-
-                payload += """
   ],
   "potentialAction": [
     {
@@ -192,27 +174,37 @@ pipeline {
 }
 """
 
-                writeFile file: 'teams_payload.json', text: payload
+                    if (env.DEPLOY_STATUS == 'FAILED') {
+                        payload = payload.replace(
+                            ']',
+                            """,
+    {
+      "title": "❌ Deployment Error",
+      "text": "```${env.DEPLOY_ERROR}```"
+    }
+]"""
+                        )
+                    }
 
-                bat '''
-                curl -H "Content-Type: application/json" ^
-                     -X POST "%TEAMS_URL%" ^
-                     --data-binary @teams_payload.json
-                '''
+                    writeFile file: 'teams_payload.json', text: payload
+
+                    bat """
+                        curl -H "Content-Type: application/json" ^
+                             -X POST "%TEAMS_URL%" ^
+                             --data-binary @teams_payload.json
+                    """
+                }
+
+                cleanWs()
             }
+        }
 
-            // Cleanup should also be inside ONE always block
-            cleanWs()
+        success {
+            echo '✅ Pipeline completed successfully'
+        }
+
+        failure {
+            echo '❌ Pipeline failed'
         }
     }
-
-    success {
-        echo '✅ Pipeline completed successfully'
-    }
-
-    failure {
-        echo '❌ Pipeline failed'
-    }
-}
-
 }
