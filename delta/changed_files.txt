@@ -1,7 +1,4 @@
 delta/changed_files.txt
-delta/package.xml
-delta/src/classes/ContactHandler.cls
 delta/src/lwc/contactCreator/contactCreator.html
-delta/src/triggers/ContactTrigger.trigger
 force-app/main/default/lwc/contactCreator/contactCreator.html
 jenkinsfile

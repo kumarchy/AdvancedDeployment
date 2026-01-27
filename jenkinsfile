@@ -138,7 +138,7 @@ pipeline {
 
     always {
         script {
-            withCredentials([string(credentialsId: 'TEAMS_WEBHOOK', variable: 'TEAMS_URL')]) {
+            withCredentials([string(credentialsId: 'teams-webhook', variable: 'TEAMS_URL')]) {
 
                 def color = 'ffc107'
                 if (env.DEPLOY_STATUS == 'SUCCESS') color = '28a745'
