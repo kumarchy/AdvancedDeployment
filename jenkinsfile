@@ -135,15 +135,16 @@ pipeline {
     }
 
     post {
-        always {
-            script {
-                withCredentials([string(credentialsId: 'teams-webhook', variable: 'TEAMS_URL')]) {
 
-                    def color = 'ffc107'
-                    if (env.DEPLOY_STATUS == 'SUCCESS') color = '28a745'
-                    if (env.DEPLOY_STATUS == 'FAILED') color = 'dc3545'
+    always {
+        script {
+            withCredentials([string(credentialsId: 'TEAMS_WEBHOOK', variable: 'TEAMS_URL')]) {
 
-                    def payload = """
+                def color = 'ffc107'
+                if (env.DEPLOY_STATUS == 'SUCCESS') color = '28a745'
+                if (env.DEPLOY_STATUS == 'FAILED') color = 'dc3545'
+
+                def payload = """
 {
   "@type": "MessageCard",
   "@context": "http://schema.org/extensions",
@@ -157,7 +158,7 @@ pipeline {
         { "name": "⏰ Time", "value": "${env.CURRENT_TIME}" },
         { "name": "✅ Status", "value": "${env.DEPLOY_STATUS}" },
         { "name": "👤 Author", "value": "${env.COMMIT_AUTHOR}" },
-        { "name": "🔨 Commit", "value": "${env.COMMIT_HASH.substring(0,8)}" },
+        { "name": "🔨 Commit", "value": "${env.COMMIT_HASH?.take(8)}" },
         { "name": "💬 Message", "value": "${env.COMMIT_MESSAGE}" }
       ],
       "markdown": true
@@ -168,16 +169,16 @@ pipeline {
     }
 """
 
-                    if (env.DEPLOY_STATUS == 'FAILED') {
-                        payload += """,
+                if (env.DEPLOY_STATUS == 'FAILED') {
+                    payload += """,
     {
       "title": "❌ Deployment Error",
       "text": "```${env.DEPLOY_ERROR}```"
     }
 """
-                    }
+                }
 
-                    payload += """
+                payload += """
   ],
   "potentialAction": [
     {
@@ -191,27 +192,27 @@ pipeline {
 }
 """
 
-                    writeFile file: 'teams_payload.json', text: payload
+                writeFile file: 'teams_payload.json', text: payload
 
-                    bat '''
-                    curl -H "Content-Type: application/json" ^
-                         -X POST "%TEAMS_URL%" ^
-                         --data-binary @teams_payload.json
-                    '''
-                }
+                bat '''
+                curl -H "Content-Type: application/json" ^
+                     -X POST "%TEAMS_URL%" ^
+                     --data-binary @teams_payload.json
+                '''
             }
-        }
 
-        success {
-            echo '✅ Pipeline completed successfully'
-        }
-
-        failure {
-            echo '❌ Pipeline failed'
-        }
-
-        always {
+            // Cleanup should also be inside ONE always block
             cleanWs()
         }
     }
+
+    success {
+        echo '✅ Pipeline completed successfully'
+    }
+
+    failure {
+        echo '❌ Pipeline failed'
+    }
+}
+
 }
