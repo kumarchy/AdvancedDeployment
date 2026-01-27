@@ -32,48 +32,34 @@ pipeline {
         stage('Collect Commit Details') {
     steps {
         script {
-            // Fix for Windows date/time
-            env.CURRENT_TIME = bat(
-                script: '@echo %date% %time%',
+            env.CURRENT_TIME = powershell(
+                script: 'Get-Date -Format "yyyy-MM-dd HH:mm:ss"',
                 returnStdout: true
             ).trim()
 
-            // More reliable git commands with error handling
-            try {
-                env.COMMIT_HASH = bat(
-                    script: '@git rev-parse HEAD',
-                    returnStdout: true
-                ).trim()
+            env.COMMIT_HASH = powershell(
+                script: 'git rev-parse HEAD',
+                returnStdout: true
+            ).trim()
 
-                env.COMMIT_AUTHOR = bat(
-                    script: '@git log -1 --pretty=format:%%an',
-                    returnStdout: true
-                ).trim()
+            env.COMMIT_AUTHOR = powershell(
+                script: 'git log -1 --pretty=format:%an',
+                returnStdout: true
+            ).trim()
 
-                env.COMMIT_MESSAGE = bat(
-                    script: '@git log -1 --pretty=format:%%s',
-                    returnStdout: true
-                ).trim()
+            env.COMMIT_MESSAGE = powershell(
+                script: 'git log -1 --pretty=format:%s',
+                returnStdout: true
+            ).trim()
 
-                env.CODE_DIFF = bat(
-                    script: '@git diff --name-status HEAD~1 HEAD',
-                    returnStdout: true
-                ).trim()
-            } catch (Exception e) {
-                echo "Warning: Git commands failed: ${e.message}"
-                env.COMMIT_HASH = 'N/A'
-                env.COMMIT_AUTHOR = 'N/A'
-                env.COMMIT_MESSAGE = 'N/A'
-                env.CODE_DIFF = 'Unable to retrieve'
-            }
+            env.CODE_DIFF = powershell(
+                script: 'git diff --name-status HEAD~1 HEAD',
+                returnStdout: true
+            ).trim()
 
-            if (!env.CODE_DIFF || env.CODE_DIFF == '') {
+            if (!env.CODE_DIFF) {
                 env.CODE_DIFF = 'No file changes detected'
             }
-            
-            echo "Commit Hash: ${env.COMMIT_HASH}"
-            echo "Author: ${env.COMMIT_AUTHOR}"
-            echo "Message: ${env.COMMIT_MESSAGE}"
         }
     }
 }
