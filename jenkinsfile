@@ -32,27 +32,27 @@ pipeline {
         stage('Collect Commit Details') {
     steps {
         script {
-            env.CURRENT_TIME = powershell(
-                script: 'Get-Date -Format "yyyy-MM-dd HH:mm:ss"',
+            env.CURRENT_TIME = bat(
+                script: 'echo %date% %time%',
                 returnStdout: true
             ).trim()
 
-            env.COMMIT_HASH = powershell(
+            env.COMMIT_HASH = bat(
                 script: 'git rev-parse HEAD',
                 returnStdout: true
             ).trim()
 
-            env.COMMIT_AUTHOR = powershell(
+            env.COMMIT_AUTHOR = bat(
                 script: 'git log -1 --pretty=format:%an',
                 returnStdout: true
             ).trim()
 
-            env.COMMIT_MESSAGE = powershell(
+            env.COMMIT_MESSAGE = bat(
                 script: 'git log -1 --pretty=format:%s',
                 returnStdout: true
             ).trim()
 
-            env.CODE_DIFF = powershell(
+            env.CODE_DIFF = bat(
                 script: 'git diff --name-status HEAD~1 HEAD',
                 returnStdout: true
             ).trim()
@@ -146,3 +146,7 @@ pipeline {
         }
     }
 }
+
+
+
+
