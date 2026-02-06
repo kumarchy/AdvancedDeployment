@@ -9,7 +9,7 @@ public with sharing class ContactHandler {
             );
             insert con;
 
-            return 'Contact created successfully with Id: ' + con.Id;
+            return 'Contact created successfully with Id:123 ' + con.Id;
         } catch (Exception e) {
             throw new AuraHandledException('Error: ' + e.getMessage());
         }
