@@ -8,10 +8,10 @@ private class ContactHandlerTest {
 
         // Call Apex method
         Test.startTest();
-        String result = ContactHandler.createContact('John', 'Doe', acc.Id);
+        String result = ContactHandler.createContact('John', 'Doee', acc.Id);
         Test.stopTest();
 
-        System.assert(result.contains('Contact created successfully'));
+        System.assert(result.contains('Contact has been created successfully'));
         
         // Verify Contact inserted
         Contact con = [SELECT Id, AccountId FROM Contact WHERE LastName = 'Doe' LIMIT 1];
